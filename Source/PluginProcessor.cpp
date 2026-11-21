@@ -91,7 +91,7 @@ public:
                 float harm = ((1.0f - hard) * soft + hard * hardH) * env[ch];
                 harm = dc[ch].processSample (harm);                              // retire le DC
 
-                data[i] = x - 1.5f * amount * harm;
+                data[i] = x - 6.0f * amount * harm;
             }
         }
     }
