@@ -19,8 +19,11 @@ public:
     {
         sampleRate = sr;
         lastLow = lastHigh = -1.0f;
+        attCoef = (float) std::exp (-1.0 / (0.002 * sr));
+        relCoef = (float) std::exp (-1.0 / (0.060 * sr));
         for (int ch = 0; ch < 2; ++ch)
         {
+            env[ch] = 0.0f;
             hp[ch].reset();
             lp[ch].reset();
             dc[ch].reset();
@@ -72,17 +75,23 @@ public:
                 const float x = data[i];
                 const float band = lp[ch].processSample (hp[ch].processSample (x));
 
-                constexpr float d = 6.0f;                                        // pré-gain (+15 dB)
+                // Enveloppe de la bande, pour que l'effet ne dépende pas du niveau
+                const float a = std::abs (band);
+                if (a > env[ch]) env[ch] = attCoef * env[ch] + (1.0f - attCoef) * a;
+                else             env[ch] = relCoef * env[ch] + (1.0f - relCoef) * a;
+                const float nrm = band / (env[ch] + 0.001f);
+
+                constexpr float d = 2.5f;
 
                 // Soft : saturation asymétrique (harmoniques paires + impaires)
-                const float soft = (std::tanh (d * band + 0.6f) - 0.537f) / d - 0.7116f * band;
+                const float soft = (std::tanh (d * nrm + 0.6f) - 0.537f) / d - 0.7116f * nrm;
                 // Hard : saturation symétrique (harmoniques impaires)
-                const float hardH = std::tanh (d * band) / d - band;
+                const float hardH = std::tanh (d * nrm) / d - nrm;
 
-                float harm = (1.0f - hard) * soft + hard * hardH;
+                float harm = ((1.0f - hard) * soft + hard * hardH) * env[ch];
                 harm = dc[ch].processSample (harm);                              // retire le DC
 
-                data[i] = x - 4.0f * amount * harm;
+                data[i] = x - 1.5f * amount * harm;
             }
         }
     }
@@ -121,7 +130,7 @@ private:
         using R = juce::NormalisableRange<float>;
         juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-        layout.add (std::make_unique<P> (juce::ParameterID { "silk", 1 }, "Silk (quantité)", R (0.0f, 1.0f), 0.5f));
+        layout.add (std::make_unique<P> (juce::ParameterID { "silk", 1 }, "Silk (quantite)", R (0.0f, 1.0f), 0.5f));
         layout.add (std::make_unique<P> (juce::ParameterID { "hard", 1 }, "Soft <-> Hard",   R (0.0f, 1.0f), 0.0f));
         layout.add (std::make_unique<P> (juce::ParameterID { "low",  1 }, "Bande: bas (Hz)",  R (300.0f, 8000.0f, 1.0f, 0.4f), 1500.0f));
         layout.add (std::make_unique<P> (juce::ParameterID { "high", 1 }, "Bande: haut (Hz)", R (4000.0f, 20000.0f, 1.0f, 0.4f), 12000.0f));
@@ -130,6 +139,8 @@ private:
 
     double sampleRate = 44100.0;
     float lastLow = -1.0f, lastHigh = -1.0f;
+    float attCoef = 0.0f, relCoef = 0.0f;
+    float env[2] = { 0.0f, 0.0f };
     std::array<juce::dsp::IIR::Filter<float>, 2> hp, lp, dc;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SilkLikeProcessor)
