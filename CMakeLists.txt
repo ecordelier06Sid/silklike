@@ -19,6 +19,15 @@ juce_add_plugin(SilkLike
     NEEDS_MIDI_OUTPUT FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
+juce_add_binary_data(SilkAssets SOURCES
+    Source/faceplate.jpg
+    Source/knob.png
+    Source/meter.png
+    Source/meter_bezel.png)
+set_target_properties(SilkAssets PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
+add_dependencies(SilkLike SilkAssets)
+
 target_sources(SilkLike PRIVATE Source/PluginProcessor.cpp)
 
 target_compile_definitions(SilkLike PUBLIC
@@ -27,5 +36,5 @@ target_compile_definitions(SilkLike PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0)
 
 target_link_libraries(SilkLike
-    PRIVATE juce::juce_audio_utils juce::juce_dsp
+    PRIVATE SilkAssets juce::juce_audio_utils juce::juce_dsp
     PUBLIC juce::juce_recommended_config_flags)
